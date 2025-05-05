@@ -3,7 +3,7 @@ import { fileService } from '../services/fileService';
 import { DocumentIcon, TrashIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import debounce from 'lodash/debounce';
-
+import mimeDb from "mime-db";
 
 export const FileList: React.FC = () => {
   const queryClient = useQueryClient();
@@ -18,7 +18,15 @@ export const FileList: React.FC = () => {
     startDate: '',
     endDate: '',
   });
-  const [tempFilters, setTempFilters] = useState(filters);
+  const [selectedType, setSelectedType] = useState('');
+  const [minSize, setMinSize] = useState("");
+  const [maxSize, setMaxSize] = useState("");
+  const [minDate, setMinDate] = useState("");
+  const [maxDate, setMaxDate] = useState("");
+  
+  const [isSizeValid, setIsSizeValid] = useState(true);
+  const [isDateValid, setIsDateValid] = useState(true);
+  
 
 
 
@@ -45,7 +53,7 @@ export const FileList: React.FC = () => {
     setSuggestions([]);
     setFilters(prev => ({ ...prev, name: file }));
   };
-
+  
   const fetchSuggestions = useCallback(
     debounce(async (query: string) => {
       if (query.length >= 3) {
@@ -62,6 +70,9 @@ export const FileList: React.FC = () => {
     const value = e.target.value;
     setInput(value);
     fetchSuggestions(value);
+    if (value === "") {
+      setFilters(prev => ({ ...prev, name: "" }));
+    }
   };
 
   // Mutation for deleting files
@@ -86,24 +97,12 @@ export const FileList: React.FC = () => {
     }
   };
 
-  const handleDownload = async (fileUrl: string, filename: string) => {
+  const handleDownload = async (filename: string, fileUrl?: string) => {
     try {
-      await downloadMutation.mutateAsync({ fileUrl, filename });
+      if(fileUrl) await downloadMutation.mutateAsync({ fileUrl, filename });
     } catch (err) {
       console.error('Download error:', err);
     }
-  };
-
-  const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setTempFilters(prev => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
-
-  const applyFilters = () => {
-    setFilters(tempFilters); // triggers react-query re-fetch
   };
 
   useEffect(() => {
@@ -119,6 +118,44 @@ export const FileList: React.FC = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+  
+  const getExtension = (mimeType: string) => {
+    const entry = mimeDb[mimeType];
+    return entry?.extensions?.[0] || mimeType;
+  };
+
+  const { data: mimeTypes } = useQuery({
+    queryKey: ['mimeTypes'],
+    queryFn: fileService.getMimeTypes, 
+    staleTime: 5 * 60 * 1000, 
+    enabled: true,
+  });
+
+  useEffect(() => {
+    const minSizeNum = parseInt(minSize, 10);
+    const maxSizeNum = parseInt(maxSize, 10);
+  
+    const sizeValid = (!minSize || !maxSize) || (minSizeNum <= maxSizeNum);
+    const dateValid = (!minDate || !maxDate) || (new Date(minDate) <= new Date(maxDate));
+
+    setIsSizeValid(sizeValid);
+    setIsDateValid(dateValid);
+  }, [minSize, maxSize, minDate, maxDate]);
+
+  const handleApplyFilter = () => {
+    const startSize = minSize ? parseInt(minSize, 10) * 1024 : 0;
+    const endSize = maxSize ? parseInt(maxSize, 10) * 1024 : 0;
+  
+    setFilters(prev => ({
+      ...prev,
+      type: selectedType,
+      startSize,
+      endSize,
+      startDate: minDate,
+      endDate: maxDate
+    }));
+  };
+  
 
   if (isLoading) {
     return (
@@ -209,13 +246,13 @@ export const FileList: React.FC = () => {
                   <select
                     id="fileType"
                     className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    onChange={handleFilterChange}
+                    value={selectedType}
+                    onChange={(e) => setSelectedType(e.target.value)}
                   >
-                    <option value="pdf">PDF</option>
-                    <option value="docx">DOCX</option>
-                    <option value="jpg">JPG</option>
-                    <option value="png">PNG</option>
-                    <option value="txt">TXT</option>
+                    <option value="">All</option>
+                    {mimeTypes?.map((mimeType) => (
+                      <option key={mimeType} value={mimeType}>{getExtension(mimeType)}</option>
+                    ))}
                   </select>
                 </div>
 
@@ -228,7 +265,8 @@ export const FileList: React.FC = () => {
                         type="number"
                         id="minFileSize"
                         className="mt-2 p-2 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        onChange={handleFilterChange}
+                        value={minSize}
+                        onChange={(e) => setMinSize(e.target.value)}
                       />
                     </div>
                     <div className="flex-1">
@@ -237,10 +275,16 @@ export const FileList: React.FC = () => {
                         type="number"
                         id="maxFileSize"
                         className="mt-2 p-2 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        onChange={handleFilterChange}
+                        value={maxSize}
+                        onChange={(e) => setMaxSize(e.target.value)}
                       />
                     </div>
                   </div>
+                  {!isSizeValid && (
+                    <p className="text-red-500 text-sm mt-2">
+                      Minimum size must be less than or equal to maximum size.
+                    </p>
+                  )}
                 </div>
 
                 <div className="bg-white p-4 rounded-lg shadow-md">
@@ -252,7 +296,7 @@ export const FileList: React.FC = () => {
                         type="date"
                         id="startDate"
                         className="mt-2 p-2 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        onChange={handleFilterChange}
+                        onChange={(e) => setMinDate(e.target.value)}
                       />
                     </div>
                     <div className="flex-1">
@@ -261,15 +305,25 @@ export const FileList: React.FC = () => {
                         type="date"
                         id="endDate"
                         className="mt-2 p-2 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        onChange={handleFilterChange}
+                        onChange={(e) => setMaxDate(e.target.value)}
                       />
                     </div>
                   </div>
+                  {!isDateValid && (
+                    <p className="text-red-500 text-sm mt-2">
+                      Start date must be before or equal to end date.
+                    </p>
+                  )}
                 </div>
               </div>
               <button 
-              className='bg-primary-600 hover:bg-primary-700 px-5 py-3 rounded-full mt-5 font-bold text-white'
-              onClick={applyFilters}
+                onClick={handleApplyFilter}
+                className={`px-5 py-3 rounded-full mt-5 font-bold text-white ${
+                  isSizeValid && isDateValid
+                    ? "bg-primary-600 hover:bg-primary-700"
+                    : "bg-gray-300 cursor-not-allowed"
+                }`}
+                disabled={!isSizeValid || !isDateValid}
               >Apply Filter</button>
             </div>
           </div>
@@ -305,7 +359,7 @@ export const FileList: React.FC = () => {
                   </div>
                   <div className="flex space-x-2">
                     <button
-                      onClick={() => handleDownload(file.file, file.original_filename)}
+                      onClick={() => handleDownload(file.original_filename,file.file)}
                       disabled={downloadMutation.isPending}
                       className="inline-flex items-center px-3 py-2 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
                     >

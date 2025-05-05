@@ -6,4 +6,3 @@ class FileSerializer(serializers.ModelSerializer):
         model = File
         fields = ['id', 'file', 'original_filename', 'file_type', 'file_hash', 'size', 'uploaded_at','reference_id']
         read_only_fields = ['id', 'uploaded_at'] 
-    file = serializers.CharField() 

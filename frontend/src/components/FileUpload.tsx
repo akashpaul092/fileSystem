@@ -44,6 +44,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onUploadSuccess }) => {
       }
     },
     onError: (error) => {
+      console.log(error)
       setError('Failed to check for duplicates.');
       console.error('Duplicate check error:', error);
     },

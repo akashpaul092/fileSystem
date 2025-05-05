@@ -52,6 +52,11 @@ export const fileService = {
     return response.data;
   },
 
+  async getMimeTypes(): Promise<string[]>{
+    const response = await axios.get(`${API_URL}/files/get_all_mime_type/`);
+    return response.data;
+  },
+
   async deleteFile(id: string): Promise<void> {
     await axios.delete(`${API_URL}/files/${id}/`);
   },

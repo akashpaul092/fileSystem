@@ -1,3 +1,4 @@
+from typing import List
 from django.http import JsonResponse
 from django.shortcuts import render
 from rest_framework import viewsets, status
@@ -8,7 +9,7 @@ from .models import File
 from .serializers import FileSerializer
 from .utils import generate_file_hash
 from rest_framework.decorators import action
-from django.db.models import Q
+from django.db.models import Q, OuterRef, Subquery
 from django.utils.dateparse import parse_date
 
 
@@ -40,15 +41,13 @@ class FileViewSet(viewsets.ModelViewSet):
                 'original_filename': file_obj.name,
                 'reference_id': file_id
             }
-        
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
-        
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['post'])
     def get_duplicate_file(self, request, *args, **kwargs):
         file_obj = request.FILES.get('file')
         if not file_obj:
@@ -70,7 +69,6 @@ class FileViewSet(viewsets.ModelViewSet):
         startDate = request.GET.get("startDate","").strip()
         endDate = request.GET.get("endDate","").strip()
         filters = Q()
-
         if name:
             filters &= Q(original_filename__icontains=name)
 
@@ -93,27 +91,30 @@ class FileViewSet(viewsets.ModelViewSet):
             if parsed_end:
                 filters &= Q(uploaded_at__date__lte=parsed_end)
         
-        files = list(File.objects.filter(filters).values('id', 'file', 'original_filename', 'file_type', 'file_hash', 'size', 'reference_id'))
-        final_files = []
-        base_url = request.scheme + '://' +request.get_host() + settings.MEDIA_URL
-        for file in files:
-            if file['reference_id'] is None:
-                file['file'] = base_url + file['file']
-                final_files.append(file)
-            else:
-                original = next((obj for obj in files if obj['id'] == file['reference_id']), None)
-                if original:
-                    original_file_url = base_url + original['file'] if original['file'] else None
-                    merged = {
-                        'id': file['id'],
-                        'file': original_file_url,
-                        'original_filename': file['original_filename'],
-                        'file_type': original['file_type'],
-                        'file_hash': original['file_hash'],
-                        'size': original['size'],
-                        'reference_id': file['reference_id']
-                    }
-                    final_files.append(merged)
+        original_qs = File.objects.filter(id=OuterRef('reference_id'))
+
+        queryset = File.objects.filter(filters).annotate(
+            original_file=Subquery(original_qs.values('file')[:1]),
+            original_type=Subquery(original_qs.values('file_type')[:1]),
+            original_hash=Subquery(original_qs.values('file_hash')[:1]),
+            original_size=Subquery(original_qs.values('size')[:1]),
+        ).values(
+            'id', 'file', 'original_filename', 'file_type', 'file_hash',
+            'size', 'reference_id', 'uploaded_at',
+            'original_file', 'original_type', 'original_hash', 'original_size'
+        )
+        final_files: List[File] = []
+        for file in queryset:
+            final_files.append(File(
+                id = file['id'],   
+                file = file['original_file'] if file['reference_id'] else file['file'],
+                original_filename = file['original_filename'],
+                file_type = file['original_type'] if file['reference_id'] else file['file_type'],
+                file_hash = file['original_hash'] if file['reference_id'] else file['file_hash'],
+                size = file['original_size'] if file['reference_id'] else file['size'],
+                reference_id = file['reference_id'],
+                uploaded_at = file['uploaded_at']
+            ))
        
         serializer = self.get_serializer(final_files, many=True)
         return Response(serializer.data)
@@ -130,3 +131,8 @@ class FileViewSet(viewsets.ModelViewSet):
         ).order_by("original_filename").values_list("original_filename", flat=True).distinct()[:10]
 
         return JsonResponse(list(matching_files), safe=False)
+    
+    @action(detail=False, methods=['get'])
+    def get_all_mime_type(self, request, *args, **kwargs):
+        file_types = File.objects.filter(file_type__isnull=False).order_by('file_type').values_list('file_type', flat=True).distinct()
+        return JsonResponse(list(file_types), safe=False)
