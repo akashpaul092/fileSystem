@@ -1,9 +1,11 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { fileService } from '../services/fileService';
 import { DocumentIcon, TrashIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import debounce from 'lodash/debounce';
 import mimeDb from "mime-db";
+import { toast } from 'react-toastify';
+import { useMimeType } from '../context/MimeTypeContext';
 
 export const FileList: React.FC = () => {
   const queryClient = useQueryClient();
@@ -92,6 +94,7 @@ export const FileList: React.FC = () => {
   const handleDelete = async (id: string) => {
     try {
       await deleteMutation.mutateAsync(id);
+      refetchMimeTypes();
     } catch (err) {
       console.error('Delete error:', err);
     }
@@ -124,12 +127,13 @@ export const FileList: React.FC = () => {
     return entry?.extensions?.[0] || mimeType;
   };
 
-  const { data: mimeTypes } = useQuery({
-    queryKey: ['mimeTypes'],
-    queryFn: fileService.getMimeTypes, 
-    staleTime: 5 * 60 * 1000, 
-    enabled: true,
-  });
+  const { mimeTypes, isLoading: isMimeTypesLoading, error: mimeTypeError, refetchMimeTypes } = useMimeType();
+
+  useEffect(() => {
+    if (mimeTypeError) {
+      toast.error("Failed to load file types.");
+    }
+  }, [mimeTypeError]);
 
   useEffect(() => {
     const minSizeNum = parseInt(minSize, 10);
@@ -250,10 +254,22 @@ export const FileList: React.FC = () => {
                     onChange={(e) => setSelectedType(e.target.value)}
                   >
                     <option value="">All</option>
-                    {mimeTypes?.map((mimeType) => (
-                      <option key={mimeType} value={mimeType}>{getExtension(mimeType)}</option>
-                    ))}
-                  </select>
+                    {isMimeTypesLoading && (
+                      <option disabled>
+                        <span className="flex items-center">
+                          <span className="w-2.5 h-2.5 mr-2 bg-blue-500 rounded-full animate-ping"></span>
+                          Loading...
+                        </span>
+                      </option>
+                    )}
+
+                    {!isMimeTypesLoading &&
+                      mimeTypes?.map((mimeType) => (
+                        <option key={mimeType} value={mimeType}>
+                          {getExtension(mimeType)}
+                        </option>
+                      ))}
+                    </select>
                 </div>
 
                 <div className="bg-white p-4 rounded-lg shadow-md">

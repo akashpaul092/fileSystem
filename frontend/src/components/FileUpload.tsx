@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { fileService } from '../services/fileService';
 import { CloudArrowUpIcon } from '@heroicons/react/24/outline';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMimeType } from '../context/MimeTypeContext';
 
 interface FileUploadProps {
   onUploadSuccess: () => void;
@@ -13,7 +14,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onUploadSuccess }) => {
   const queryClient = useQueryClient();
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
   const [duplicateId, setDuplicateId] = useState<string | null>(null);
-
+  const { refetchMimeTypes  } = useMimeType();
 
   const uploadMutation = useMutation({
     mutationFn: ({ file, referenceId }: { file: File; referenceId?: string }) =>
@@ -23,6 +24,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onUploadSuccess }) => {
       queryClient.invalidateQueries({ queryKey: ['files'] });
       setSelectedFile(null);
       onUploadSuccess();
+      refetchMimeTypes();
     },
     onError: (error) => {
       setError('Failed to upload file. Please try again.');
