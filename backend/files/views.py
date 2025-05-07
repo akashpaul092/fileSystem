@@ -41,7 +41,7 @@ class FileViewSet(viewsets.ModelViewSet):
         else:
             data = {
                 'original_filename': file_obj.name,
-                'reference_id': file_id
+                'reference': file_id
             }
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
