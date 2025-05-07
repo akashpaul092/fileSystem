@@ -10,8 +10,8 @@ from .models import File
 from .serializers import FileSerializer
 from .utils import generate_file_hash
 from rest_framework.decorators import action
-from django.db.models import Q, OuterRef, Subquery, F
-from django.utils.dateparse import parse_date
+from django.db.models import Q, F
+from dateutil.parser import parse
 from django.db.models.functions import Coalesce
 
 
@@ -90,12 +90,12 @@ class FileViewSet(viewsets.ModelViewSet):
             filters &= Q(size_coalesced__lte=int(end_size))
 
         if start_date:
-            parsed_start = parse_date(start_date)
+            parsed_start = parse(start_date)
             if parsed_start:
                 filters &= Q(uploaded_at__date__gte=parsed_start)
 
         if end_date:
-            parsed_end = parse_date(end_date)
+            parsed_end = parse(end_date)
             if parsed_end:
                 filters &= Q(uploaded_at__date__lte=parsed_end)
         

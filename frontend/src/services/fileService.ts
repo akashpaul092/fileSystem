@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { FileResponse, File as FileType } from '../types/file';
+import { convertToUTC } from '../utils/helperUtils';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
 
@@ -20,14 +21,15 @@ export const fileService = {
   },
 
   async getFiles(name?: string, type?: string, startSize?: number, endSize?: number, startDate?: string, endDate?: string, page?: number, pageSize?: number): Promise<FileResponse> {
-    const params: Record<string, string | number> = {};
+    const params: Record<string, string | number | null> = {};
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
     if (name) params.name = name;
     if (type) params.type = type;
     if (startSize) params.startSize = startSize;
     if (endSize) params.endSize = endSize;
-    if (startDate) params.startDate = startDate;
-    if (endDate) params.endDate = endDate;
+    if (startDate) params.startDate = convertToUTC(startDate, timezone);
+    if (endDate) params.endDate = convertToUTC(endDate, timezone);
     if(page) params.page = page;
     if(pageSize) params.pageSize = pageSize;
 

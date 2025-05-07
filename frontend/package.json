@@ -9,6 +9,7 @@
     "@types/node": "^16.18.80",
     "axios": "^1.3.0",
     "lodash": "^4.17.21",
+    "luxon": "^3.6.1",
     "mime-db": "^1.54.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
@@ -41,6 +42,7 @@
   },
   "devDependencies": {
     "@types/lodash": "^4.17.16",
+    "@types/luxon": "^3.6.2",
     "@types/mime-db": "^1.43.5",
     "@types/mime-types": "^2.1.4",
     "@types/react": "^19.0.8",
