@@ -6,7 +6,7 @@ export interface File {
   uploaded_at: string;
   file: string;
   file_hash: string;
-  reference_id: string;
+  reference: string;
 } 
 
 export interface FileResponse{

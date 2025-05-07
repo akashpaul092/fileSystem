@@ -366,14 +366,14 @@ export const FileList: React.FC = () => {
                     <p className="text-sm font-medium text-gray-900 truncate">
                       {file.original_filename}
                     </p>
-                    <p>{file.reference_id ? (
+                    <p>{file.reference ? (
                           <strong>reference hash : </strong>
                         ) : (
                           <strong>hash : </strong>
                         )}
                         ( { file.file_hash } )
                     </p>
-                    {file.reference_id ?
+                    {file.reference ?
                       (<p><strong>Storage saved : {(file.size / 1024).toFixed(2)} KB </strong></p>) :
                       ('') 
                     }
