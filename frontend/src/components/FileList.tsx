@@ -6,6 +6,7 @@ import debounce from 'lodash/debounce';
 import mimeDb from "mime-db";
 import { toast } from 'react-toastify';
 import { useMimeType } from '../context/MimeTypeContext';
+import Pagination from './Pagination';
 
 export const FileList: React.FC = () => {
   const queryClient = useQueryClient();
@@ -19,6 +20,8 @@ export const FileList: React.FC = () => {
     endSize: 0,
     startDate: '',
     endDate: '',
+    page: 0,
+    pageSize: 20
   });
   const [selectedType, setSelectedType] = useState('');
   const [minSize, setMinSize] = useState("");
@@ -29,8 +32,6 @@ export const FileList: React.FC = () => {
   const [isSizeValid, setIsSizeValid] = useState(true);
   const [isDateValid, setIsDateValid] = useState(true);
   
-
-
 
   // Query for fetching files
   const { data: files, isLoading, error } = useQuery({
@@ -44,7 +45,9 @@ export const FileList: React.FC = () => {
         params.startSize,
         params.endSize,
         params.startDate,
-        params.endDate
+        params.endDate,
+        params.page,
+        params.pageSize
       );
     },
     enabled: true
@@ -159,8 +162,14 @@ export const FileList: React.FC = () => {
       endDate: maxDate
     }));
   };
-  
 
+  const handlePageChange = (page: number) => {
+    setFilters(prev => ({
+      ...prev,
+      page
+    }));
+  };
+  
   if (isLoading) {
     return (
       <div className="p-6">
@@ -206,7 +215,7 @@ export const FileList: React.FC = () => {
   return (
     <div className="p-6">
       <h2 className="text-xl font-semibold text-gray-900 mb-4">Uploaded Files</h2>
-      {!files || files.length === 0 ? (
+      {!files || !files.result || files?.result.length === 0 ? (
         <div className="text-center py-12">
           <DocumentIcon className="mx-auto h-12 w-12 text-gray-400" />
           <h3 className="mt-2 text-sm font-medium text-gray-900">No files</h3>
@@ -345,7 +354,7 @@ export const FileList: React.FC = () => {
           </div>
 
           <ul className="-my-5 divide-y divide-gray-200">
-            {files.map((file) => (
+            {files?.result?.map((file) => (
               <li key={file.id} className="py-4">
                 <div className="flex items-center space-x-4">
                   <div className="flex-shrink-0">
@@ -395,6 +404,15 @@ export const FileList: React.FC = () => {
               </li>
             ))}
           </ul>
+          <div className='flex justify-start mt-4 border-t border-gray '>
+            <Pagination
+                currentPage={files?.current_page}
+                totalPages={files?.total_pages}
+                hasNext={files?.has_next}
+                hasPrevious={files?.has_previous}
+                onPageChange={handlePageChange}
+              />
+          </div>
         </div>
       )}
     </div>

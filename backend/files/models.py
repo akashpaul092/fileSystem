@@ -16,10 +16,17 @@ class File(models.Model):
     file_hash = models.CharField(max_length=64, unique=True, null=True, blank=True)
     size = models.BigIntegerField(null=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)
-    reference_id = models.UUIDField(unique=False, null=True, blank=True)
+    reference = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL, related_name='referenced_by')
     
     class Meta:
         ordering = ['-uploaded_at']
+        indexes = [
+            models.Index(fields=['file_type']),
+            models.Index(fields=['size']),
+            models.Index(fields=['uploaded_at']),
+            models.Index(fields=['reference_id']),
+            models.Index(fields=['original_filename'])
+        ]
     
     def __str__(self):
         return self.original_filename

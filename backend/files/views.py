@@ -1,3 +1,4 @@
+import math
 from typing import List
 from django.http import JsonResponse
 from django.shortcuts import render
@@ -9,8 +10,9 @@ from .models import File
 from .serializers import FileSerializer
 from .utils import generate_file_hash
 from rest_framework.decorators import action
-from django.db.models import Q, OuterRef, Subquery
+from django.db.models import Q, OuterRef, Subquery, F
 from django.utils.dateparse import parse_date
+from django.db.models.functions import Coalesce
 
 
 
@@ -64,60 +66,84 @@ class FileViewSet(viewsets.ModelViewSet):
     def list(self, request, *args, **kwargs):
         name = request.GET.get("name","").strip()
         type = request.GET.get("type","").strip()
-        startSize = request.GET.get("startSize","").strip()
-        endSize = request.GET.get("endSize","").strip()
-        startDate = request.GET.get("startDate","").strip()
-        endDate = request.GET.get("endDate","").strip()
+        start_size = request.GET.get("startSize","").strip()
+        end_size = request.GET.get("endSize","").strip()
+        start_date = request.GET.get("startDate","").strip()
+        end_date = request.GET.get("endDate","").strip()
+        
+        page = int(request.GET.get('page', 1))
+        page_size = int(request.GET.get('pageSize', 20))
+        start = (page - 1) * page_size
+        end = start + page_size
+        
         filters = Q()
         if name:
             filters &= Q(original_filename__icontains=name)
 
         if type:
-            filters &= Q(file_type__iexact=type)
+            filters &= Q(file_type_coalesced__iexact=type)
 
-        if startSize.isdigit():
-            filters &= Q(size__gte=int(startSize))
+        if start_size.isdigit():
+            filters &= Q(size_coalesced__gte=int(start_size))
 
-        if endSize.isdigit():
-            filters &= Q(size__lte=int(endSize))
+        if end_size.isdigit():
+            filters &= Q(size_coalesced__lte=int(end_size))
 
-        if startDate:
-            parsed_start = parse_date(startDate)
+        if start_date:
+            parsed_start = parse_date(start_date)
             if parsed_start:
                 filters &= Q(uploaded_at__date__gte=parsed_start)
 
-        if endDate:
-            parsed_end = parse_date(endDate)
+        if end_date:
+            parsed_end = parse_date(end_date)
             if parsed_end:
                 filters &= Q(uploaded_at__date__lte=parsed_end)
         
-        original_qs = File.objects.filter(id=OuterRef('reference_id'))
-
-        queryset = File.objects.filter(filters).annotate(
-            original_file=Subquery(original_qs.values('file')[:1]),
-            original_type=Subquery(original_qs.values('file_type')[:1]),
-            original_hash=Subquery(original_qs.values('file_hash')[:1]),
-            original_size=Subquery(original_qs.values('size')[:1]),
+        base_queryset = File.objects.annotate(
+            file_coalesced=Coalesce(F('reference__file'), F('file')),
+            file_type_coalesced=Coalesce(F('reference__file_type'), F('file_type')),
+            file_hash_coalesced=Coalesce(F('reference__file_hash'), F('file_hash')),
+            size_coalesced=Coalesce(F('reference__size'), F('size')),
         ).values(
-            'id', 'file', 'original_filename', 'file_type', 'file_hash',
-            'size', 'reference_id', 'uploaded_at',
-            'original_file', 'original_type', 'original_hash', 'original_size'
-        )
-        final_files: List[File] = []
-        for file in queryset:
-            final_files.append(File(
-                id = file['id'],   
-                file = file['original_file'] if file['reference_id'] else file['file'],
-                original_filename = file['original_filename'],
-                file_type = file['original_type'] if file['reference_id'] else file['file_type'],
-                file_hash = file['original_hash'] if file['reference_id'] else file['file_hash'],
-                size = file['original_size'] if file['reference_id'] else file['size'],
-                reference_id = file['reference_id'],
-                uploaded_at = file['uploaded_at']
-            ))
-       
-        serializer = self.get_serializer(final_files, many=True)
-        return Response(serializer.data)
+            'id',
+            'file_coalesced',
+            'original_filename',
+            'file_type_coalesced',
+            'uploaded_at',
+            'file_hash_coalesced',
+            'size_coalesced',
+            'reference_id'
+        ).filter(filters)
+
+        total_count = base_queryset.count()
+        total_pages = math.ceil(total_count / page_size)
+
+        queryset = base_queryset[start:end]
+        file_objects = [
+            File(
+                id=file['id'],
+                file=file['file_coalesced'],
+                original_filename=file['original_filename'],
+                file_type=file['file_type_coalesced'],
+                file_hash=file['file_hash_coalesced'],
+                size=file['size_coalesced'],
+                reference_id=file['reference_id'],
+                uploaded_at=file['uploaded_at']
+            )
+            for file in queryset
+        ]
+        
+        serializer = self.get_serializer(file_objects, many=True)
+        result_object = {
+            "result" : serializer.data,
+            'count': total_count,
+            'total_pages': total_pages,
+            'current_page': page,
+            'page_size': page_size,
+            'has_next': page < total_pages,
+            'has_previous': page > 1,
+        }
+        return JsonResponse(result_object, safe=False)
     
     @action(detail=False, methods=['get'])
     def get_files(self, request, *args, **kwargs):

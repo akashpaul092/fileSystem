@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { File as FileType } from '../types/file';
+import { FileResponse, File as FileType } from '../types/file';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
 
@@ -19,7 +19,7 @@ export const fileService = {
     return response.data;
   },
 
-  async getFiles(name?: string, type?: string, startSize?: number, endSize?: number, startDate?: string, endDate?: string): Promise<FileType[]> {
+  async getFiles(name?: string, type?: string, startSize?: number, endSize?: number, startDate?: string, endDate?: string, page?: number, pageSize?: number): Promise<FileResponse> {
     const params: Record<string, string | number> = {};
 
     if (name) params.name = name;
@@ -28,6 +28,8 @@ export const fileService = {
     if (endSize) params.endSize = endSize;
     if (startDate) params.startDate = startDate;
     if (endDate) params.endDate = endDate;
+    if(page) params.page = page;
+    if(pageSize) params.pageSize = pageSize;
 
     const response = await axios.get(`${API_URL}/files/`, {params});
     return response.data;
