@@ -321,6 +321,7 @@ export const FileList: React.FC = () => {
                         type="date"
                         id="startDate"
                         className="mt-2 p-2 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        value={minDate}
                         onChange={(e) => setMinDate(e.target.value)}
                       />
                     </div>
@@ -330,6 +331,7 @@ export const FileList: React.FC = () => {
                         type="date"
                         id="endDate"
                         className="mt-2 p-2 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        value={maxDate}
                         onChange={(e) => setMaxDate(e.target.value)}
                       />
                     </div>
